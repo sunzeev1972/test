@@ -122,12 +122,48 @@
         .error.show {
             display: block;
         }
+
+        .loading {
+            color: #667eea;
+            margin-top: 10px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            display: none;
+            text-align: center;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .config-section {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .config-section input {
+            font-size: 12px;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Employee Information</h1>
         
+        <div class="config-section">
+            <p><strong>Setup Instructions:</strong></p>
+            <p style="margin-top: 5px;">1. Paste your Google Sheets ID below</p>
+            <input type="text" id="sheetsId" placeholder="Paste Google Sheets ID here" style="width: 100%; padding: 8px;">
+            <button onclick="setSheetId()" style="margin-top: 8px; padding: 8px; font-size: 12px;">Save Sheet ID</button>
+            <p style="margin-top: 10px; color: #999;">Find your Sheet ID in the URL: docs.google.com/spreadsheets/d/<strong>SHEET_ID_HERE</strong>/edit</p>
+        </div>
+
         <div class="form-group">
             <label for="employeeId">Employee ID:</label>
             <input type="text" id="employeeId" placeholder="Enter employee ID (e.g., E001, E002)">
@@ -135,6 +171,7 @@
 
         <button onclick="searchEmployee()">Search</button>
 
+        <div id="loading" class="loading">Loading employee data...</div>
         <div id="error" class="error"></div>
 
         <div id="employeeInfo" class="employee-info">
@@ -166,75 +203,140 @@
     </div>
 
     <script>
-        // Sample employee data - replace with API call to your backend
-        const employees = [
-            {
-                id: 'E001',
-                name: 'John Smith',
-                workplace: 'New York Office',
-                department: 'Engineering',
-                position: 'Senior Developer',
-                email: 'john.smith@company.com'
-            },
-            {
-                id: 'E002',
-                name: 'Sarah Johnson',
-                workplace: 'San Francisco Office',
-                department: 'Product',
-                position: 'Product Manager',
-                email: 'sarah.johnson@company.com'
-            },
-            {
-                id: 'E003',
-                name: 'Mike Chen',
-                workplace: 'Austin Office',
-                department: 'Marketing',
-                position: 'Marketing Specialist',
-                email: 'mike.chen@company.com'
-            },
-            {
-                id: 'E004',
-                name: 'Emma Davis',
-                workplace: 'Chicago Office',
-                department: 'HR',
-                position: 'HR Manager',
-                email: 'emma.davis@company.com'
-            }
-        ];
+        let employees = [];
 
+        // Get sheet ID from localStorage or use default
+        function initializeSheet() {
+            const savedId = localStorage.getItem('googleSheetId');
+            if (savedId) {
+                document.getElementById('sheetsId').value = savedId;
+                loadEmployeeData();
+            }
+        }
+
+        // Save and load sheet ID
+        function setSheetId() {
+            const sheetsId = document.getElementById('sheetsId').value.trim();
+            if (!sheetsId) {
+                alert('Please paste a Google Sheets ID');
+                return;
+            }
+            localStorage.setItem('googleSheetId', sheetsId);
+            loadEmployeeData();
+        }
+
+        // Load data from Google Sheets
+        async function loadEmployeeData() {
+            const sheetsId = localStorage.getItem('googleSheetId');
+            if (!sheetsId) {
+                showError('Please set your Google Sheets ID first');
+                return;
+            }
+
+            showLoading(true);
+            try {
+                // Google Sheets CSV export URL
+                const url = `https://docs.google.com/spreadsheets/d/${sheetsId}/export?format=csv`;
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch data. Check your Sheet ID and ensure it\'s publicly accessible.');
+                }
+
+                const csv = await response.text();
+                employees = parseCSV(csv);
+                showLoading(false);
+                showSuccess(`Loaded ${employees.length} employees from Google Sheets`);
+            } catch (error) {
+                showLoading(false);
+                showError(error.message);
+            }
+        }
+
+        // Parse CSV data
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            if (lines.length < 2) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            const employees = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                if (values.length < 1 || !values[0]) continue;
+
+                const employee = {};
+                headers.forEach((header, index) => {
+                    employee[header] = values[index] || '';
+                });
+                employees.push(employee);
+            }
+
+            return employees;
+        }
+
+        // Search for employee
         function searchEmployee() {
+            if (employees.length === 0) {
+                showError('No employee data loaded. Please set your Google Sheets ID first.');
+                return;
+            }
+
             const employeeId = document.getElementById('employeeId').value.trim().toUpperCase();
             const errorDiv = document.getElementById('error');
             const infoDiv = document.getElementById('employeeInfo');
 
-            // Clear previous messages
             errorDiv.classList.remove('show');
             infoDiv.classList.remove('show');
 
             if (!employeeId) {
-                errorDiv.textContent = 'Please enter an employee ID';
-                errorDiv.classList.add('show');
+                showError('Please enter an employee ID');
                 return;
             }
 
-            // Search for employee
-            const employee = employees.find(emp => emp.id === employeeId);
+            // Search for employee (match with 'id' or 'employee id' column)
+            const employee = employees.find(emp => 
+                (emp.id || emp['employee id'] || emp['employeeid'] || '').toUpperCase() === employeeId
+            );
 
             if (!employee) {
-                errorDiv.textContent = `No employee found with ID: ${employeeId}`;
-                errorDiv.classList.add('show');
+                showError(`No employee found with ID: ${employeeId}`);
                 return;
             }
 
             // Display employee information
-            document.getElementById('displayId').textContent = employee.id;
-            document.getElementById('displayName').textContent = employee.name;
-            document.getElementById('displayWorkplace').textContent = employee.workplace;
-            document.getElementById('displayDepartment').textContent = employee.department;
-            document.getElementById('displayPosition').textContent = employee.position;
-            document.getElementById('displayEmail').textContent = employee.email;
+            document.getElementById('displayId').textContent = employee.id || employee['employee id'] || '';
+            document.getElementById('displayName').textContent = employee.name || employee['employee name'] || '';
+            document.getElementById('displayWorkplace').textContent = employee.workplace || employee['work place'] || '';
+            document.getElementById('displayDepartment').textContent = employee.department || '';
+            document.getElementById('displayPosition').textContent = employee.position || employee['job title'] || '';
+            document.getElementById('displayEmail').textContent = employee.email || '';
 
             infoDiv.classList.add('show');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+
+        function showLoading(show) {
+            const loadingDiv = document.getElementById('loading');
+            if (show) {
+                loadingDiv.classList.add('show');
+            } else {
+                loadingDiv.classList.remove('show');
+            }
+        }
+
+        function showSuccess(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.background = '#e8f5e9';
+            errorDiv.style.color = '#2e7d32';
+            errorDiv.classList.add('show');
+            setTimeout(() => errorDiv.classList.remove('show'), 3000);
         }
 
         // Allow search on Enter key press
@@ -243,6 +345,9 @@
                 searchEmployee();
             }
         });
+
+        // Initialize on page load
+        window.addEventListener('load', initializeSheet);
     </script>
 </body>
 </html>
