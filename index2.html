@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheets Form</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; }
+        .section { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        input { display: block; width: 100%; margin: 10px 0; padding: 8px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 10px; cursor: pointer; width: 100%; }
+        button:hover { background: #0056b3; }
+        #searchResult, #addResult { margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <!-- Search Section -->
+    <div class="section">
+        <h3>Search Data</h3>
+        <input type="text" id="searchId" placeholder="Enter ID to search">
+        <button onclick="searchData()">Search</button>
+        <div id="searchResult"></div>
+    </div>
+
+    <!-- Add Data Section -->
+    <div class="section">
+        <h3>Add New Data</h3>
+        <input type="text" id="addId" placeholder="ID">
+        <input type="text" id="addName" placeholder="Name">
+        <input type="email" id="addEmail" placeholder="Email">
+        <button onclick="addData()">Add to Sheet</button>
+        <div id="addResult"></div>
+    </div>
+
+    <script>
+        // PASTE YOUR GOOGLE APPS SCRIPT URL HERE
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxqEVBZOXtpnnpd-w0cuXVzB98431PoBdgWt3Tu9mI9wiy_cdebOmrk7xMzcU3xVOS3/exec";
+
+        async function searchData() {
+            const id = document.getElementById('searchId').value;
+            const resultDiv = document.getElementById('searchResult');
+            
+            if (!id) {
+                resultDiv.innerHTML = "<span style='color:red'>Please enter an ID.</span>";
+                return;
+            }
+
+            resultDiv.innerHTML = "Searching...";
+
+            try {
+                const response = await fetch(`${SCRIPT_URL}?action=search&id=${id}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = `<span style="color:green">Found: ${data.name} (${data.email})</span>`;
+                } else {
+                    resultDiv.innerHTML = `<span style="color:red">${data.message}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = "Error connecting to server.";
+            }
+        }
+
+        async function addData() {
+            const id = document.getElementById('addId').value;
+            const name = document.getElementById('addName').value;
+            const email = document.getElementById('addEmail').value;
+            const resultDiv = document.getElementById('addResult');
+            
+            if(!id || !name || !email) {
+                resultDiv.innerHTML = "<span style='color:red'>Please fill all fields.</span>";
+                return;
+            }
+
+            resultDiv.innerHTML = "Saving...";
+
+            try {
+                const response = await fetch(`${SCRIPT_URL}?action=add&id=${id}&name=${name}&email=${email}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    resultDiv.innerHTML = `<span style="color:green">Success! Data added.</span>`;
+                    // Clear inputs
+                    document.getElementById('addId').value = '';
+                    document.getElementById('addName').value = '';
+                    document.getElementById('addEmail').value = '';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = "Error saving data.";
+            }
+        }
+    </script>
+</body>
+</html>
